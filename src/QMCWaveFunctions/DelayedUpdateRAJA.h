@@ -9,8 +9,8 @@
 // File created by: Ye Luo, yeluo@anl.gov, Argonne National Laboratory
 //////////////////////////////////////////////////////////////////////////////////////
 
-#ifndef QMCPLUSPLUS_DELAYED_UPDATE_H
-#define QMCPLUSPLUS_DELAYED_UPDATE_H
+#ifndef QMCPLUSPLUS_DELAYED_UPDATE_RAJA_H
+#define QMCPLUSPLUS_DELAYED_UPDATE_RAJA_H
 
 #include "config.h"
 #include <Numerics/OhmmsPETE/OhmmsVector.h>
@@ -19,6 +19,7 @@
 #include "QMCWaveFunctions/DiracMatrix.h"
 #include "Numerics/BlasThreadingEnv.h"
 #include "RAJA/RAJA.hpp"
+
 namespace qmcplusplus
 {
 /** implements delayed update on CPU using BLAS
@@ -31,14 +32,13 @@ class DelayedUpdate
   /// define real type
   using real_type = typename scalar_traits<T>::real_type;
   /// orbital values of delayed electrons
-  qmcplusplus::Matrix<T> U;
-  RAJA::View<T,RAJA::Layout<2>> Uview;
+  RAJA::View<T,Layout<2>> U;
   /// rows of Ainv corresponding to delayed electrons
-  qmcplusplus::Matrix<T> V;
+  RAJA::View<T,Layout<2>> V;
   /// Matrix inverse of B, at maximum KxK
-  qmcplusplus::Matrix<T> Binv;
+  RAJA::View<T,Layout<2>> Binv;
   /// scratch space, used during inverse update
-  qmcplusplus::Matrix<T> tempMat;
+  RAJA::View<T,Layout<2>> tempMat;
   /// temporal scratch space used by SM-1
   Vector<T> temp;
   /// new column of B
@@ -60,13 +60,8 @@ public:
    */
   inline void resize(int norb, int delay)
   {
-    std::array<long int, 2> rowMajor{{0,1}};
     V.resize(delay, norb);
     U.resize(delay, norb);
-    Uview.set_data(U.data());
-    RAJA::Layout<2> Ulayout = RAJA::make_permuted_layout({{delay,norb}}, rowMajor);
-    Uview.set_layout(Ulayout);
-
     p.resize(delay);
     temp.resize(norb);
     tempMat.resize(norb, delay);
@@ -78,7 +73,7 @@ public:
    * @param logdetT orbital value matrix
    * @param Ainv inverse matrix
    */
-  inline void invert_transpose(const qmcplusplus::Matrix<T>& logdetT, qmcplusplus::Matrix<T>& Ainv, real_type& LogValue, real_type& PhaseValue)
+  inline void invert_transpose(const RAJA::View<T,Layout<2>>& logdetT, RAJA::View<T,Layout<2>>& Ainv, real_type& LogValue, real_type& PhaseValue)
   {
     detEng.invert_transpose(logdetT, Ainv, LogValue, PhaseValue);
     // safe mechanism
@@ -88,7 +83,7 @@ public:
   /** initialize internal objects when Ainv is refreshed
    * @param Ainv inverse matrix
    */
-  inline void initializeInv(const qmcplusplus::Matrix<T>& Ainv)
+  inline void initializeInv(const RAJA::View<T,Layout<2>>& Ainv)
   {
     // safe mechanism
     delay_count = 0;
@@ -99,7 +94,7 @@ public:
    * @param rowchanged the row id corresponding to the proposed electron
    */
   template<typename VVT>
-  inline void getInvRow(const qmcplusplus::Matrix<T>& Ainv, int rowchanged, VVT& invRow)
+  inline void getInvRow(const RAJA::View<T,Layout<2>>& Ainv, int rowchanged, VVT& invRow)
   {
     if (delay_count == 0)
     {
@@ -127,7 +122,7 @@ public:
    * Before delay_count reaches the maximum delay, only Binv is updated with a recursive algorithm
    */
   template<typename VVT>
-  inline void acceptRow(Matrix<T>& Ainv, int rowchanged, const VVT& psiV)
+  inline void acceptRow(RAJA::View<T,Layout<2>>& Ainv, int rowchanged, const VVT& psiV)
   {
     const T cminusone(-1);
     const T czero(0);
@@ -161,7 +156,7 @@ public:
   /** update the full Ainv and reset delay_count
    * @param Ainv inverse matrix
    */
-  inline void updateInvMat(Matrix<T>& Ainv)
+  inline void updateInvMat(RAJA::View<T,Layout<2>>& Ainv)
   {
     if (delay_count == 0)
       return;

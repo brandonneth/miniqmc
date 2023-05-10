@@ -1,4 +1,4 @@
-//////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////
 // This file is distributed under the University of Illinois/NCSA Open Source License.
 // See LICENSE file in top directory for details.
 //
@@ -38,13 +38,13 @@ template<typename DU_TYPE = DelayedUpdate<QMCTraits::ValueType, QMCTraits::QTFul
 class DiracDeterminantRef : public WaveFunctionComponent
 {
 public:
-  using ValueVector_t = Vector<ValueType>;
-  using ValueMatrix_t = Matrix<ValueType>;
-  using GradVector_t  = Vector<GradType>;
-  using GradMatrix_t  = Matrix<GradType>;
+  using ValueVector_t = qmcplusplus::Vector<ValueType>;
+  using ValueMatrix_t = qmcplusplus::Matrix<ValueType>;
+  using GradVector_t  = qmcplusplus::Vector<GradType>;
+  using GradMatrix_t  = qmcplusplus::Matrix<GradType>;
 
   using mValueType       = QMCTraits::QTFull::ValueType;
-  using ValueMatrix_hp_t = Matrix<mValueType>;
+  using ValueMatrix_hp_t = qmcplusplus::Matrix<mValueType>;
   using mGradType        = TinyVector<mValueType, DIM>;
 
   /** constructor

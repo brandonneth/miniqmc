@@ -30,6 +30,8 @@
 #include "QMCWaveFunctions/DelayedUpdateCUDA.h"
 #endif
 
+#include "RAJA/RAJA.hpp"
+
 namespace qmcplusplus
 {
 template<typename DU_TYPE = DelayedUpdate<QMCTraits::ValueType, QMCTraits::QTFull::ValueType>>

@@ -39,6 +39,11 @@ ENDIF()
 STRING( TOUPPER "${CMAKE_BUILD_TYPE}" CMAKE_BUILD_TYPE )
 MESSAGE( STATUS "CMAKE_BUILD_TYPE is ${CMAKE_BUILD_TYPE}")
 
+
+
+include(../blt/SetupBLT.cmake)
+find_package(RAJA REQUIRED)
+add_definitions(-w)
 ######################################################################
 # Define the paths for library and executable for out-of-soruce compilation
 # Directory where customize cmake files reside
@@ -255,7 +260,7 @@ ELSE(CMAKE_TOOLCHAIN_FILE)
   ENDIF()
 
   # requires C++11 standard
-  SET(CMAKE_CXX_STANDARD 11)
+  SET(CMAKE_CXX_STANDARD 17)
   SET(CMAKE_CXX_STANDARD_REQUIRED ON)
   SET(CMAKE_CXX_EXTENSIONS OFF)
 

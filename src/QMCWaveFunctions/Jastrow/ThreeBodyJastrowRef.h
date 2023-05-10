@@ -50,12 +50,12 @@ class ThreeBodyJastrowRef : public WaveFunctionComponent
   RealType DiffVal;
 
   ///\f$Uat[i] = sum_(j) u_{i,j}\f$
-  Vector<valT> Uat, oldUk, newUk;
+  qmcplusplus::Vector<valT> Uat, oldUk, newUk;
   ///\f$dUat[i] = sum_(j) du_{i,j}\f$
   using gContainer_type = VectorSoAContainer<valT, OHMMS_DIM>;
   gContainer_type dUat, olddUk, newdUk;
   ///\f$d2Uat[i] = sum_(j) d2u_{i,j}\f$
-  Vector<valT> d2Uat, oldd2Uk, newd2Uk;
+  qmcplusplus::Vector<valT> d2Uat, oldd2Uk, newd2Uk;
   /// current values during PbyP
   valT cur_Uat, cur_d2Uat;
   posT cur_dUat, dUat_temp;
@@ -488,9 +488,9 @@ public:
                                valT& Uj,
                                posT& dUj,
                                valT& d2Uj,
-                               Vector<valT>& Uk,
+                               qmcplusplus::Vector<valT>& Uk,
                                gContainer_type& dUk,
-                               Vector<valT>& d2Uk)
+                               qmcplusplus::Vector<valT>& d2Uk)
   {
     const DistanceTableData& eI_table = (*P.DistTables[myTableID]);
 
@@ -589,9 +589,9 @@ public:
                         valT& Uj,
                         posT& dUj,
                         valT& d2Uj,
-                        Vector<valT>& Uk,
+                        qmcplusplus::Vector<valT>& Uk,
                         gContainer_type& dUk,
-                        Vector<valT>& d2Uk,
+                        qmcplusplus::Vector<valT>& d2Uk,
                         bool triangle = false)
   {
     constexpr valT czero(0);

@@ -53,12 +53,12 @@ struct OneBodyJastrowRef : public WaveFunctionComponent
   posT curGrad;
 
   ///\f$Vat[i] = sum_(j) u_{i,j}\f$
-  Vector<valT> Vat;
+  qmcplusplus::Vector<valT> Vat;
   aligned_vector<valT> U, dU, d2U;
   aligned_vector<valT> DistCompressed;
   aligned_vector<int> DistIndice;
-  Vector<posT> Grad;
-  Vector<valT> Lap;
+  qmcplusplus::Vector<posT> Grad;
+  qmcplusplus::Vector<valT> Lap;
   /// Container for \f$F[ig*NumGroups+jg]\f$
   std::vector<FT*> F;
 
