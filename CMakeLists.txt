@@ -42,8 +42,14 @@ MESSAGE( STATUS "CMAKE_BUILD_TYPE is ${CMAKE_BUILD_TYPE}")
 
 
 include(../blt/SetupBLT.cmake)
+
+include(FindPkgConfig)
+pkg_check_modules(ISL REQUIRED IMPORTED_TARGET isl)
+pkg_check_modules(BARVINOK REQUIRED IMPORTED_TARGET barvinok)
+
 find_package(RAJA REQUIRED)
 add_definitions(-w)
+
 ######################################################################
 # Define the paths for library and executable for out-of-soruce compilation
 # Directory where customize cmake files reside
@@ -397,7 +403,7 @@ IF (BUILD_AFQMC AND NOT MKL_FOUND)
   MESSAGE(WARNING "AFQMC - MKL not found, using simple sparse matrix routines.  Link with MKL sparse libraries for better performance.")
 ENDIF()
 
-SET(QMC_UTIL_LIBS ${QMC_UTIL_LIBS} ${FORTRAN_LIBRARIES})
+SET(QMC_UTIL_LIBS ${QMC_UTIL_LIBS} ${FORTRAN_LIBRARIES} RAJA)
 
 #find_package(ZLIB)
    
@@ -519,6 +525,11 @@ MESSAGE(STATUS "Ready to build miniQMC")
 # add definitions
 #  -DH5_USE_16_API for HDF5
 ####################################################################
+OPTION(VARIANT "which delayed update variant to run" -2)
+IF(VARIANT GREATER -2)
+  MESSAGE (STATUS "DELAYED update variant: USING_FORMAT_DECISIONS${VARIANT}")
+  ADD_DEFINITIONS(-DUSING_FORMAT_DECISIONS${VARIANT})
+ENDIF(VARIANT GREATER -2)
 
 ADD_DEFINITIONS(-DHAVE_CONFIG_H -DH5_USE_16_API -DADD_)
 

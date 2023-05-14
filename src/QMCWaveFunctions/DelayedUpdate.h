@@ -63,9 +63,6 @@ public:
     std::array<long int, 2> rowMajor{{0,1}};
     V.resize(delay, norb);
     U.resize(delay, norb);
-    Uview.set_data(U.data());
-    RAJA::Layout<2> Ulayout = RAJA::make_permuted_layout({{delay,norb}}, rowMajor);
-    Uview.set_layout(Ulayout);
 
     p.resize(delay);
     temp.resize(norb);
@@ -179,6 +176,120 @@ public:
     }
     else
     {
+
+#define USING_RAJA
+#ifdef USING_RAJA
+      const int lda_Binv = Binv.cols();
+      using View2 = RAJA::View<T, RAJA::Layout<2>>;
+      View2 Ainv_(Ainv.data(), Ainv.rows(), Ainv.cols());
+      View2 U_(U.data(), U.rows(), U.cols());
+      View2 V_(V.data(), V.rows(), V.cols());
+      View2 Binv_(Binv.data(), Binv.rows(), Binv.cols());
+      View2 tempMat_(tempMat.data(), tempMat.rows(), tempMat.cols());
+      using namespace RAJA;
+      using POL=KernelPolicy<
+        statement::Tile<0, tile_fixed<64>, RAJA::seq_exec,
+        statement::Tile<1, tile_fixed<64>, RAJA::seq_exec,
+        statement::Tile<2, tile_fixed<64>, RAJA::seq_exec,
+        statement::For<0,omp_parallel_for_exec,
+          statement::For<1, seq_exec,
+            statement::Lambda<0,Segs<0,1>>,
+              statement::For<2, seq_exec,
+                statement::Lambda<1,Segs<0,1,2>>
+      >>>>>>>;
+      
+      auto dc_seg = RangeSegment(0,delay_count);
+      auto norb_seg = RangeSegment(0,norb);
+
+      auto knl1 = make_kernel<POL>(make_tuple(RangeSegment(0,delay_count), RangeSegment(0,norb), RangeSegment(0,norb)),
+        [&](auto i, auto j) {tempMat_(j,i) = 0;},
+        [&](auto i, auto j, auto k) {
+          tempMat_(j,i) += U_(i,k) * Ainv_(j,k);
+        });
+
+      auto knl2 = make_forall<omp_parallel_for_exec>(dc_seg, [&](auto i) {
+        tempMat_(delay_list[i], i) -= 1;
+      });
+
+      auto knl3 = make_kernel<POL>(make_tuple(norb_seg, dc_seg, dc_seg),
+        [&](auto i, auto j) {U_(j,i) = 0;},
+        [&](auto i, auto j, auto k) {
+          U_(j,i) += V_(k,i) * Binv_(j,k);
+        });
+
+      auto knl4 = make_kernel<POL>(make_tuple(norb_seg, norb_seg, dc_seg),
+        [&](auto i, auto j) {},
+        [&](auto i, auto j, auto k) {
+          Ainv_(j,i) -= U_(k,i) * tempMat_(j,k);
+        });
+
+#ifdef USING_FORMAT_DECISIONS1
+      auto dec = format_decisions(tie(U_, Ainv_, tempMat_, V_), knl1, knl2, knl3, knl4);
+      dec.set_format_for(Ainv_, {0,1}, knl1);
+      dec.set_format_for(Ainv_, {1,0}, knl4);
+      dec.set_format_for(U_, {0,1}, knl1);
+      dec.set_format_for(U_, {1,0}, knl3);
+      dec.set_format_for(U_, {1,0}, knl4);
+      dec.set_format_for(tempMat_, {1,0}, knl1);
+      dec.set_format_for(tempMat_, {0,1}, knl4);
+      dec.set_format_for(V_, {1,0}, knl3);
+      auto comp = dec.finalize();
+      comp();
+#elif defined(USING_FORMAT_DECISIONS2)
+      auto dec = format_decisions(tie(U_, V_), knl1, knl2, knl3, knl4);
+      dec.set_format_for(U_, {0,1}, knl1);
+      dec.set_format_for(U_, {1,0}, knl4);
+      dec.set_format_for(V_, {1,0}, knl3);
+      auto comp = dec.finalize();
+      comp();
+#elif defined(USING_FORMAT_DECISIONS0)
+      auto dec = format_decisions(tie(U_, V_, Ainv_, tempMat_), knl1, knl2, knl3, knl4);
+      auto comp = dec.finalize();
+      comp();
+#elif defined(USING_FORMAT_DECISIONS3)
+      auto dec = format_decisions(tie(U_), knl1, knl2, knl3, knl4);
+      dec.set_format_for(U_, {0,1}, knl1);
+      dec.set_format_for(U_, {1,0}, knl4);
+      auto comp = dec.finalize();
+      comp();
+#elif defined(USING_FORMAT_DECISIONS4)
+      auto dec = format_decisions(tie(V_), knl1, knl2, knl3, knl4);
+      dec.set_format_for(V_, {1,0}, knl3);
+      auto comp = dec.finalize();
+      comp();
+#elif defined(USING_FORMAT_DECISIONS5)
+      auto dec = format_decisions(tie(V_), knl1, knl2, knl3, knl4);
+      dec.set_format_for(V_, {1,0}, knl1);
+      dec.set_format_for(V_, {1,0}, knl2);
+      dec.set_format_for(V_, {1,0}, knl3);
+      dec.set_format_for(V_, {1,0}, knl4);
+      dec.set_output_format(V_, {1,0});
+      auto comp = dec.finalize();
+      comp();
+
+#elif defined(USING_FORMAT_DECISIONS6)
+      auto dec = format_decisions(tie(Ainv_), knl1, knl2, knl3, knl4);
+      dec.set_format_for(Ainv_, {1,0}, knl1);
+      dec.set_format_for(Ainv_, {1,0}, knl2);
+      dec.set_format_for(Ainv_, {1,0}, knl3);
+      dec.set_format_for(Ainv_, {1,0}, knl4);
+      dec.set_output_format(Ainv_, {1,0});
+      auto comp = dec.finalize();
+      comp();
+
+#else
+std::cout << "default raja\n";
+      knl1();
+      knl2();
+      knl3();
+      knl4();
+#endif
+
+#else
+
+
+std::cout << "nonraja execution.\n";
+
       const int lda_Binv     = Binv.cols();
       int num_threads_nested = getNextLevelNumThreads();
       // always use serial when norb is small or only one second level thread
@@ -232,6 +343,9 @@ public:
             }
         }
       }
+
+#endif
+
     }
     delay_count = 0;
   }
