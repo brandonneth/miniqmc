@@ -525,11 +525,11 @@ MESSAGE(STATUS "Ready to build miniQMC")
 # add definitions
 #  -DH5_USE_16_API for HDF5
 ####################################################################
-OPTION(VARIANT "which delayed update variant to run" -2)
-IF(VARIANT GREATER -2)
+OPTION(VARIANT "which delayed update variant to run" defaultVariant)
+IF(NOT VARIANT STREQUAL defaultVariant)
   MESSAGE (STATUS "DELAYED update variant: USING_FORMAT_DECISIONS${VARIANT}")
   ADD_DEFINITIONS(-DUSING_FORMAT_DECISIONS${VARIANT})
-ENDIF(VARIANT GREATER -2)
+ENDIF(NOT VARIANT STREQUAL defaultVariant )
 
 ADD_DEFINITIONS(-DHAVE_CONFIG_H -DH5_USE_16_API -DADD_)
 

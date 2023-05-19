@@ -11,7 +11,7 @@ VARIANTS=""
 APPEND=0
 NUMRUNS=1
 DELAY=32
-SHAPE="\"1 2 2\""
+SHAPE="1 2 2"
 OUTFILE=results.csv
 while test $# -gt 0
 do
@@ -48,8 +48,11 @@ do
 done
 
 
+if [[ $APPEND -ne 1 ]] ; then
+rm $OUTFILE
 touch $OUTFILE
 echo "Shape, Delay, Variant, Time" > $OUTFILE
+fi
 
 
 for variant in $VARIANTS; do

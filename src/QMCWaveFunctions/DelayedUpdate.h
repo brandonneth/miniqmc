@@ -49,10 +49,12 @@ class DelayedUpdate
   int delay_count;
   /// matrix inversion engine
   DiracMatrix<T_FP, T> detEng;
-
+  NewTimer * timer;
 public:
   /// default constructor
-  DelayedUpdate() : delay_count(0) {}
+  DelayedUpdate() : delay_count(0) {
+    timer = TimerManager.createTimer("Determinant::update::FormatDecisions", timer_level_fine);
+  }
 
   /** resize the internal storage
    * @param norb number of electrons/orbitals
@@ -177,8 +179,8 @@ public:
     else
     {
 
-#define USING_RAJA
-#ifdef USING_RAJA
+#ifndef USING_FORMAT_DECISIONSORIGINAL
+timer->start();
       const int lda_Binv = Binv.cols();
       using View2 = RAJA::View<T, RAJA::Layout<2>>;
       View2 Ainv_(Ainv.data(), Ainv.rows(), Ainv.cols());
@@ -188,15 +190,14 @@ public:
       View2 tempMat_(tempMat.data(), tempMat.rows(), tempMat.cols());
       using namespace RAJA;
       using POL=KernelPolicy<
-        statement::Tile<0, tile_fixed<64>, RAJA::seq_exec,
+        statement::Tile<0, tile_fixed<64>, RAJA::omp_parallel_for_exec,
         statement::Tile<1, tile_fixed<64>, RAJA::seq_exec,
-        statement::Tile<2, tile_fixed<64>, RAJA::seq_exec,
-        statement::For<0,omp_parallel_for_exec,
+        statement::For<0,seq_exec,
           statement::For<1, seq_exec,
             statement::Lambda<0,Segs<0,1>>,
               statement::For<2, seq_exec,
                 statement::Lambda<1,Segs<0,1,2>>
-      >>>>>>>;
+      >>>>>>;
       
       auto dc_seg = RangeSegment(0,delay_count);
       auto norb_seg = RangeSegment(0,norb);
@@ -223,7 +224,18 @@ public:
           Ainv_(j,i) -= U_(k,i) * tempMat_(j,k);
         });
 
-#ifdef USING_FORMAT_DECISIONS1
+#if defined(USING_FORMAT_DECISIONSBASE)
+timer->stop();
+      knl1();
+      knl2();
+      knl3();
+      knl4();
+#elif defined(USING_FORMAT_DECISIONS0)
+      auto dec = format_decisions(tie(U_, V_, Ainv_, tempMat_), knl1, knl2, knl3, knl4);
+      auto comp = dec.finalize();
+timer->stop();
+      comp();
+#elif defined(USING_FORMAT_DECISIONS1)
       auto dec = format_decisions(tie(U_, Ainv_, tempMat_, V_), knl1, knl2, knl3, knl4);
       dec.set_format_for(Ainv_, {0,1}, knl1);
       dec.set_format_for(Ainv_, {1,0}, knl4);
@@ -234,6 +246,7 @@ public:
       dec.set_format_for(tempMat_, {0,1}, knl4);
       dec.set_format_for(V_, {1,0}, knl3);
       auto comp = dec.finalize();
+timer->stop();
       comp();
 #elif defined(USING_FORMAT_DECISIONS2)
       auto dec = format_decisions(tie(U_, V_), knl1, knl2, knl3, knl4);
@@ -241,54 +254,271 @@ public:
       dec.set_format_for(U_, {1,0}, knl4);
       dec.set_format_for(V_, {1,0}, knl3);
       auto comp = dec.finalize();
-      comp();
-#elif defined(USING_FORMAT_DECISIONS0)
-      auto dec = format_decisions(tie(U_, V_, Ainv_, tempMat_), knl1, knl2, knl3, knl4);
-      auto comp = dec.finalize();
+timer->stop();
       comp();
 #elif defined(USING_FORMAT_DECISIONS3)
       auto dec = format_decisions(tie(U_), knl1, knl2, knl3, knl4);
       dec.set_format_for(U_, {0,1}, knl1);
       dec.set_format_for(U_, {1,0}, knl4);
       auto comp = dec.finalize();
+timer->stop();
       comp();
 #elif defined(USING_FORMAT_DECISIONS4)
       auto dec = format_decisions(tie(V_), knl1, knl2, knl3, knl4);
       dec.set_format_for(V_, {1,0}, knl3);
       auto comp = dec.finalize();
+timer->stop();
       comp();
 #elif defined(USING_FORMAT_DECISIONS5)
-      auto dec = format_decisions(tie(V_), knl1, knl2, knl3, knl4);
-      dec.set_format_for(V_, {1,0}, knl1);
-      dec.set_format_for(V_, {1,0}, knl2);
-      dec.set_format_for(V_, {1,0}, knl3);
-      dec.set_format_for(V_, {1,0}, knl4);
-      dec.set_output_format(V_, {1,0});
+      auto dec = format_decisions(tie(U_), knl1, knl2, knl3, knl4);
       auto comp = dec.finalize();
+timer->stop();
       comp();
 
 #elif defined(USING_FORMAT_DECISIONS6)
-      auto dec = format_decisions(tie(Ainv_), knl1, knl2, knl3, knl4);
-      dec.set_format_for(Ainv_, {1,0}, knl1);
-      dec.set_format_for(Ainv_, {1,0}, knl2);
-      dec.set_format_for(Ainv_, {1,0}, knl3);
-      dec.set_format_for(Ainv_, {1,0}, knl4);
-      dec.set_output_format(Ainv_, {1,0});
-      auto comp = dec.finalize();
+      auto comp = loop_chain(knl1, knl2, knl3, knl4);
+timer->stop();
       comp();
-
-#else
-std::cout << "default raja\n";
+#elif defined(USING_FORMAT_DECISIONS7)
+      auto comp = loop_chain(knl1, knl2, knl3, knl4);
+      timer->stop();
+      camp::get<0>(comp.knlTuple)();
+      camp::get<1>(comp.knlTuple)();
+      camp::get<2>(comp.knlTuple)();
+      camp::get<3>(comp.knlTuple)();
+#elif defined(USING_FORMAT_DECISIONS8)
+      auto comp = loop_chain(knl1, knl2, knl3, knl4);
+      timer->stop();
       knl1();
       knl2();
       knl3();
       knl4();
-#endif
+#elif defined(USING_FORMAT_DECISIONS9)
+      timer->stop();
+      knl1();
+      knl2();
+      knl3();
+      knl4();
+      auto comp = loop_chain(knl1, knl2, knl3, knl4);
+#elif defined(USING_FORMAT_DECISIONS10)
+      auto comp = loop_chain(knl4);
+      timer->stop();
+      knl1();
+      knl2();
+      knl3();
+      knl4();
+#elif defined(USING_FORMAT_DECISIONS11)
+      auto fake_kernel = make_forall<seq_exec>(RangeSegment(0,10), [=](auto i) {});
+      auto comp = loop_chain(fake_kernel);
+      timer->stop();
+      knl1();
+      knl2();
+      knl3();
+      knl4();
+#elif defined(USING_FORMAT_DECISIONS12)
+      auto fake_kernel = make_forall<seq_exec>(RangeSegment(0,10), [=](auto i) {});
+      timer->stop();
+      knl1();
+      knl2();
+      knl3();
+      knl4();
+#elif defined(USING_FORMAT_DECISIONS13)
+      auto fake_kernel = make_forall<seq_exec>(RangeSegment(0,10), [=](auto i) {});
+      auto comp = LoopChain<decltype(fake_kernel)>(make_tuple(fake_kernel));
+      timer->stop();
+      knl1();
+      knl2();
+      knl3();
+      knl4();
+#elif defined(USING_FORMAT_DECISIONS14)
+      auto fake_kernel = make_forall<seq_exec>(RangeSegment(0,10), [=](auto i) {});
+      auto executor = [=](auto k) {
+        k();
+      };
+      timer->stop();
+      knl1();
+      knl2();
+      knl3();
+      knl4();
+#elif defined(USING_FORMAT_DECISIONS15)
+      auto fake_kernel = make_forall<seq_exec>(RangeSegment(0,10), [=](auto i) {});
+      auto executor = [=](auto k) {
+        k();
+      };
+      executor(fake_kernel);
+      timer->stop();
+      knl1();
+      knl2();
+      knl3();
+      knl4();
+#elif defined(USING_FORMAT_DECISIONS16)
+      auto fake_kernel = make_forall<seq_exec>(RangeSegment(0,10), [=](auto i) {});
+      auto executor = [=](const auto & k) {
+        k();
+      };
+      executor(fake_kernel);
+      timer->stop();
+      knl1();
+      knl2();
+      knl3();
+      knl4();
+#elif defined(USING_FORMAT_DECISIONS17)
+      auto fake_kernel = make_forall<seq_exec>(RangeSegment(0,10), [=](auto i) {});
+      auto comp = loop_chain(camp::tie(fake_kernel));
+      timer->stop();
+      knl1();
+      knl2();
+      knl3();
+      knl4();
+#elif defined(USING_FORMAT_DECISIONS18)
+      auto fake_kernel = make_forall<seq_exec>(RangeSegment(0,10), [=](auto i) {});
+      auto comp = loop_chain(camp::tie(knl1,knl2,knl3,knl4));
+      timer->stop();
+      knl1();
+      knl2();
+      knl3();
+      knl4();
+#elif defined(USING_FORMAT_DECISIONS19)
+      auto fake_kernel = make_forall<seq_exec>(RangeSegment(0,10), [=](auto i) {});
+      auto comp = loop_chain(camp::tie(knl1,knl2,knl3,knl4));
+      timer->stop();
+      comp();
 
+#elif defined(USING_FORMAT_DECISIONS20)
+     
+      auto dec = format_decisions_ref(tie(U_, V_), tie(knl1, knl2, knl3, knl4));
+      dec.set_format_for(U_, {0,1}, knl1);
+      dec.set_format_for(U_, {1,0}, knl4);
+      dec.set_format_for(V_, {1,0}, knl3);
+      auto comp = dec.finalize();
+      timer->stop();
+      comp();
+#elif defined(USING_FORMAT_DECISIONS21)
+     
+      auto dec = format_decisions_ref(tie(U_, V_), tie(knl1, knl2, knl3, knl4));
+      dec.set_format_for(U_, {0,1}, knl1);
+      dec.set_format_for(U_, {1,0}, knl4);
+      dec.set_format_for(V_, {1,0}, knl3);
+      auto comp = dec.finalize();
+      timer->stop();
+      knl1();
+      knl2();
+      knl3();
+      knl4();
+
+#elif defined(USING_FORMAT_DECISIONS22)
+     
+      auto dec = format_decisions_ref(tie(U_, V_), tie(knl1, knl2, knl3, knl4));
+      auto comp = dec.finalize();
+      timer->stop();
+      knl1();
+      knl2();
+      knl3();
+      knl4();
+#elif defined(USING_FORMAT_DECISIONS23)
+      auto dec = format_decisions_ref(tie(U_, V_), tie(knl1, knl2, knl3, knl4));
+      timer->stop();
+      knl1();
+      knl2();
+      knl3();
+      knl4();
+#elif defined(USING_FORMAT_DECISIONS24)
+     
+      auto dec = format_decisions_ref(tie(U_, V_), tie(knl1, knl2, knl3, knl4));
+      dec.set_format_for(U_, {0,1}, knl1);
+      dec.set_format_for(U_, {1,0}, knl4);
+      dec.set_format_for(V_, {1,0}, knl3);
+      timer->stop();
+      knl1();
+      knl2();
+      knl3();
+      knl4();
+#elif defined(USING_FORMAT_DECISIONS25)
+     
+      auto dec = format_decisions_ref(tie(U_, V_), tie(knl1, knl2, knl3, knl4));
+      dec.set_output_format(U_, {0,1});
+      timer->stop();
+      knl1();
+      knl2();
+      knl3();
+      knl4();
+
+#elif defined(USING_FORMAT_DECISIONS26)
+     
+      auto dec = format_decisions_ref(tie(U_, V_), tie(knl1, knl2, knl3, knl4));
+      auto idx = dec.kernel_index(knl2);
+      timer->stop();
+      knl1();
+      knl2();
+      knl3();
+      knl4();
+
+#elif defined(USING_FORMAT_DECISIONS27)
+     
+      auto dec = format_decisions_ref(tie(U_, V_), tie(knl1, knl2, knl3, knl4));
+     using knlType2 = decltype(knl2);
+      int value_ = dec.template kernel_index2<knlType2>();
+      timer->stop();
+      knl1();
+      knl2();
+      knl3();
+      knl4();
+
+#elif defined(USING_FORMAT_DECISIONS28)
+     
+      auto dec = format_decisions_ref(tie(U_, V_), tie(knl1, knl2, knl3, knl4));
+      using knlType2 = decltype(knl2);
+      auto one = [=] <typename TT>() {return 1;};
+
+      int value_ = one.template operator()<knlType2>();
+      timer->stop();
+      knl1();
+      knl2();
+      knl3();
+      knl4();
+
+#elif defined(USING_FORMAT_DECISIONS29)
+     
+      auto dec = format_decisions_ref(tie(U_, V_), tie(knl1, knl2, knl3, knl4));
+     using knlType2 = decltype(knl2);
+      int value_ = dec.template kernel_index2<int>();
+      timer->stop();
+      knl1();
+      knl2();
+      knl3();
+      knl4();
+#elif defined(USING_FORMAT_DECISIONS30)
+      auto dec = format_decisions_ref(tie(U_, V_), tie(knl1, knl2, knl3, knl4));
+      auto comp = dec.just_knls();
+      timer->stop();
+      comp();
+#elif defined(USING_FORMAT_DECISIONS31)
+      auto dec = format_decisions_ref(tie(U_, V_), tie(knl1, knl2, knl3, knl4));
+      auto comp = dec.just_knls();
+      timer->stop();
+      knl1();
+      knl2();
+      knl3();
+      knl4();
+#elif defined(USING_FORMAT_DECISIONS32)
+      auto dec = format_decisions_ref(tie(U_, V_), tie(knl1, knl2, knl3, knl4));
+      auto comp = dec.finalize2(tie(knl1, knl2, knl3, knl4));
+      timer->stop();
+      knl1();
+      knl2();
+      knl3();
+      knl4();
+#elif defined(USING_FORMAT_DECISIONS33)
+      auto dec = format_decisions_ref(tie(U_, V_), tie(knl1, knl2, knl3, knl4));
+      auto comp = dec.finalize2(tie(knl1, knl2, knl3, knl4));
+      timer->stop();
+      comp();
+#else
+std::cerr << "ERROR: NO VARIANT SELECTED\n";
+#endif
 #else
 
 
-std::cout << "nonraja execution.\n";
 
       const int lda_Binv     = Binv.cols();
       int num_threads_nested = getNextLevelNumThreads();
